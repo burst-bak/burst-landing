@@ -4,6 +4,14 @@ import "./globals.css";
 
 const GA_ID = "G-6MWNGFTX8V";
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover" as const,
+};
+
 export const metadata: Metadata = {
   title: "박 터트리기 — 터트리면 상금!",
   description:
@@ -22,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full">
-      <body className="min-h-full flex flex-col text-[#1C1917] overflow-x-hidden bg-white">
+      <body className="min-h-full flex flex-col text-[#1C1917] overflow-x-hidden bg-white pb-[env(safe-area-inset-bottom)]">
         {children}
 
         {/* Kakao SDK */}
