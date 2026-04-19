@@ -437,10 +437,16 @@ export default function LandingPage() {
           </span>
         </button>
 
+        {/* ── 눌러보세요 안내 ── */}
+        <div className="flex flex-col items-center gap-0.5">
+          <p className="text-xs text-stone-400">☝️ 눌러보세요!</p>
+          <span className="text-sm animate-bounce">👆</span>
+        </div>
+
         {/* ── 사전 알림 안내 ── */}
         <div className="flex flex-col items-center gap-1 mt-2">
           <p className="text-base sm:text-lg font-extrabold text-[#1C1917]">
-            🔔 오픈 사전 알림 받기
+            🔔 사전 오픈 알림 받기
           </p>
           <span className="text-xl animate-bounce">👇</span>
         </div>
