@@ -353,11 +353,11 @@ export default function LandingPage() {
       {/* ══════════════════════════════════════
           박 + 날짜 + 카피 + CTA — 자연 흐름
           ══════════════════════════════════════ */}
-      <div className="flex flex-col items-center w-full max-w-lg mx-auto px-6 pt-4 pb-6 gap-[2vw]">
+      <div className="flex flex-col items-center w-full max-w-lg mx-auto px-6 pt-0 pb-6 gap-[2vw]">
 
         {/* ── 박 ── */}
         <motion.div
-          className="relative z-10 flex flex-col items-center"
+          className="relative z-10 flex flex-col items-center -mt-4"
           animate={
             isShaking
               ? { rotate: [0, -6, 6, -4, 4, -2, 2, 0], x: [0, -4, 4, -3, 3, -1, 1, 0] }

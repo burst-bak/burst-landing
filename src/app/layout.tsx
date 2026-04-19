@@ -1,13 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Nanum_Gothic } from "next/font/google";
 import "./globals.css";
-
-const nanumGothic = Nanum_Gothic({
-  weight: ["400", "700", "800"],
-  subsets: ["latin"],
-  display: "swap",
-});
 
 const GA_ID = "G-6MWNGFTX8V";
 
@@ -29,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full">
-      <body className={`${nanumGothic.className} min-h-full flex flex-col text-stone-800 overflow-x-hidden bg-white`}>
+      <body className="min-h-full flex flex-col text-[#1C1917] overflow-x-hidden bg-white">
         {children}
 
         {/* Kakao SDK */}
