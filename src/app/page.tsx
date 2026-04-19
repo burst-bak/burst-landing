@@ -399,7 +399,7 @@ export default function LandingPage() {
           alt="5월 5일 5후 5시"
           width={1085}
           height={292}
-          className="select-none w-[70%] sm:w-[60%] md:w-[50%] max-w-[380px] h-auto -mt-[12vw] sm:-mt-[8vw] md:-mt-[5vw]"
+          className="select-none w-[70%] sm:w-[60%] md:w-[50%] max-w-[380px] h-auto -mt-[18vw] sm:-mt-[12vw] md:-mt-[8vw]"
           draggable={false}
         />
 
