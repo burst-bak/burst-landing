@@ -439,12 +439,10 @@ export default function LandingPage() {
 
         {/* ── 사전 알림 안내 ── */}
         <div className="flex flex-col items-center gap-1 mt-2">
-          <p className="text-sm sm:text-base font-bold text-[#1C1917]">
-            오픈 사전 알림 받기
+          <p className="text-base sm:text-lg font-extrabold text-[#1C1917]">
+            🔔 오픈 사전 알림 받기
           </p>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12l7 7 7-7" />
-          </svg>
+          <span className="text-xl animate-bounce">👇</span>
         </div>
 
         {/* ── 카카오 채널 추가 버튼 (링크 방식) ── */}
