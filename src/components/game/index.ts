@@ -4,6 +4,7 @@
 export { Bak, type BakState } from "./Bak";
 export { Sandbag, type SandbagInputMode } from "./Sandbag";
 export { Thermometer } from "./Thermometer";
+export { BurstBars } from "./BurstBars";
 export { GameTimer } from "./GameTimer";
 export { CountdownOverlay } from "./CountdownOverlay";
 export { TeacherPopup, type TeacherVariant, type TeacherPosition } from "./TeacherPopup";

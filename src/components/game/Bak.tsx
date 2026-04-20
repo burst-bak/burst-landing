@@ -24,13 +24,20 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 
 export type BakState = "idle" | "shaking" | "bursted";
+export type BakVariant = "default" | "hero";
 
 interface BakProps {
   state?: BakState;
-  size?: number; // px
+  /** px 단위 (default 변형에서만 사용). hero 변형에서는 무시됨. */
+  size?: number;
+  /**
+   * default: 지정 px 크기 박스
+   * hero   : 랜딩 페이지와 동일한 크기감 (viewport 비례, perspective 변형)
+   */
+  variant?: BakVariant;
 }
 
-export function Bak({ state = "idle", size = 220 }: BakProps) {
+export function Bak({ state = "idle", size = 220, variant = "default" }: BakProps) {
   const { prefersReducedMotion } = useMotionPreference();
   const amplitude = prefersReducedMotion ? 0.4 : 1;
 
@@ -50,6 +57,30 @@ export function Bak({ state = "idle", size = 220 }: BakProps) {
     },
   };
 
+  // hero 모드 — 랜딩 페이지와 동일 비율·크기감
+  if (variant === "hero") {
+    return (
+      <motion.div
+        animate={state}
+        variants={variants}
+        className="relative z-10 flex flex-col items-center"
+        aria-label="박"
+      >
+        <Image
+          src="/bak.png"
+          alt="박"
+          width={680}
+          height={941}
+          className="select-none drop-shadow-2xl w-[156%] sm:w-[137%] md:w-[110%] max-w-[910px] h-auto"
+          style={{ transform: "perspective(500px) rotateX(-5deg) translateX(-4%)" }}
+          priority
+          draggable={false}
+        />
+      </motion.div>
+    );
+  }
+
+  // default 모드 — 지정 px 크기
   return (
     <motion.div
       animate={state}

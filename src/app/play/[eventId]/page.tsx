@@ -35,12 +35,12 @@
 import {
   Bak,
   type BakState,
+  BurstBars,
   CountdownOverlay,
   GameTimer,
   ResultModal,
   Sandbag,
   TeacherPopup,
-  Thermometer,
 } from "@/components/game";
 import Skeleton from "@/components/ui/Skeleton";
 import {
@@ -240,9 +240,8 @@ export default function PlayPage({ params }: PlayPageProps) {
         overflow: "hidden",
         userSelect: "none",
         WebkitUserSelect: "none",
-        background: phaseBackground(phase),
-        transition: "background 0.6s ease",
-        color: "#F0FAF8",
+        background: "#FFFFFF",
+        color: "#1C1917",
       }}
     >
       {/* ═══════════════ 상단 HUD (phase별) ═══════════════ */}
@@ -299,10 +298,10 @@ export default function PlayPage({ params }: PlayPageProps) {
               display: "flex",
               flexDirection: "column",
               gap: 2,
-              zIndex: 5,
+              zIndex: 10,
             }}
           >
-            <span style={{ fontSize: 11, opacity: 0.65, letterSpacing: "0.05em" }}>
+            <span style={{ fontSize: 11, color: "#5A5A5A", letterSpacing: "0.05em" }}>
               남은 시간
             </span>
             <GameTimer serverNow={serverNow} closeAt={closeAt} />
@@ -310,36 +309,65 @@ export default function PlayPage({ params }: PlayPageProps) {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ 우측 온도계 (LIVE만) ═══════════════ */}
+      {/* ═══════════════ 우측 상단 BurstBars 게이지 (LIVE만) ═══════════════ */}
       <AnimatePresence>
         {phase === "LIVE" && (
           <motion.div
-            key="thermo"
+            key="gauge"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
             style={{
               position: "absolute",
-              top: "calc(env(safe-area-inset-top) + 80px)",
+              top: "calc(env(safe-area-inset-top) + 18px)",
               right: 18,
-              zIndex: 5,
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 4,
             }}
           >
-            <Thermometer ratio={gauge?.ratio ?? 0} thresholdRatio={0.8} width={28} height={320} />
+            <span style={{ fontSize: 11, color: "#5A5A5A", letterSpacing: "0.05em" }}>
+              박 강도
+            </span>
+            <BurstBars
+              ratio={gauge?.ratio ?? 0}
+              thresholdRatio={0.8}
+              barCount={5}
+              barWidth={10}
+              gap={5}
+              height={110}
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ 중앙 박 (항상 고정) ═══════════════ */}
+      {/* ═══════════════ 중앙 박 (랜딩과 동일 비율, 항상 고정) ═══════════════ */}
       <div
         style={{
           position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
         }}
       >
-        <Bak state={bakState} size={240} />
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 512,
+            display: "flex",
+            justifyContent: "center",
+            paddingInline: 24,
+          }}
+        >
+          <Bak state={bakState} variant="hero" />
+        </div>
       </div>
 
       {/* ═══════════════ 하단 모래주머니 (항상 고정) ═══════════════ */}
@@ -359,7 +387,7 @@ export default function PlayPage({ params }: PlayPageProps) {
         <span
           style={{
             fontSize: 11,
-            color: phase === "LIVE" ? "#F0FAF8" : "#5A5A5A",
+            color: "#5A5A5A",
             opacity: 0.65,
             letterSpacing: "0.05em",
           }}
@@ -374,7 +402,7 @@ export default function PlayPage({ params }: PlayPageProps) {
           onFire={handleFire}
           isCoolingDown={isCoolingDown}
           cooldownMs={500}
-          size={phase === "LIVE" ? 110 : 96}
+          size={56}
           inputMode="drag"
         />
       </div>
@@ -423,17 +451,6 @@ function PlaySkeleton() {
       <Skeleton width="220px" height="220px" />
     </main>
   );
-}
-
-function phaseBackground(phase: GamePhase): string {
-  switch (phase) {
-    case "LIVE":
-      return "linear-gradient(180deg, #0D1B1A 0%, #18302E 100%)";
-    case "ENDED":
-      return "linear-gradient(180deg, #FFF9E0 0%, #F0FAF8 60%, #FFFFFF 100%)";
-    default:
-      return "linear-gradient(180deg, #F0FAF8 0%, #FFFFFF 60%)";
-  }
 }
 
 function formatCountdown(ms: number): string {
