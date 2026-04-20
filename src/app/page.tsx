@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 
 /* ── GA4 event helper ── */
 function gtag(...args: unknown[]) {
@@ -324,9 +325,29 @@ export default function LandingPage() {
       className="relative flex flex-col items-center w-full min-h-screen cursor-pointer"
       onClick={(e) => {
         if ((e.target as HTMLElement).closest("button")) return;
+        if ((e.target as HTMLElement).closest("a")) return;
         throwCookie();
       }}
     >
+      {/* ── 운동장 가기 버튼 (우측 상단 고정 — v2.1 확정) ── */}
+      <Link
+        href="/waiting/test-event"
+        onClick={() => trackEvent("cta_playground_enter")}
+        className="fixed z-50 rounded-full px-4 py-2 text-sm font-bold text-white
+                   bg-gradient-to-b from-[#6DD4C8] via-[#5BBFB5] to-[#3D9E94]
+                   border border-[#3D9E94]/40
+                   shadow-[0_4px_12px_rgba(61,158,148,0.35)]
+                   active:scale-95 transition-transform
+                   flex items-center gap-1.5"
+        style={{
+          top: "calc(env(safe-area-inset-top) + 12px)",
+          right: "12px",
+        }}
+      >
+        <span>운동장 가기</span>
+        <span aria-hidden>→</span>
+      </Link>
+
       {/* ── flying sand bags (absolute, 화면 중앙 기준) ── */}
       <AnimatePresence>
         {cookies.map((cookie) => (

@@ -34,7 +34,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { useAuth, useGame, useRouteGuard, useServerTime } from "@/hooks";
 import { SessionEngine } from "@/lib/session-engine";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 interface WaitingPageProps {
   params: Promise<{ eventId: string }>;
@@ -121,7 +121,7 @@ export default function WaitingPage({ params }: WaitingPageProps) {
     return <WaitingSkeleton />;
   }
 
-  const openDate = useFormattedDate(openAt);
+  const openDate = formatAbsoluteDate(openAt);
 
   return (
     <main
@@ -243,14 +243,12 @@ function formatCountdown(ms: number): string {
   return `${h}시간 ${mm.toString().padStart(2, "0")}분`;
 }
 
-function useFormattedDate(epochMs: number): string {
-  return useMemo(() => {
-    if (!epochMs) return "";
-    const d = new Date(epochMs);
-    const mo = d.getMonth() + 1;
-    const day = d.getDate();
-    const h = d.getHours().toString().padStart(2, "0");
-    const mi = d.getMinutes().toString().padStart(2, "0");
-    return `${mo}/${day} ${h}:${mi} 오픈`;
-  }, [epochMs]);
+function formatAbsoluteDate(epochMs: number): string {
+  if (!epochMs) return "";
+  const d = new Date(epochMs);
+  const mo = d.getMonth() + 1;
+  const day = d.getDate();
+  const h = d.getHours().toString().padStart(2, "0");
+  const mi = d.getMinutes().toString().padStart(2, "0");
+  return `${mo}/${day} ${h}:${mi} 오픈`;
 }

@@ -7,3 +7,4 @@ export { Thermometer } from "./Thermometer";
 export { GameTimer } from "./GameTimer";
 export { CountdownOverlay } from "./CountdownOverlay";
 export { TeacherPopup, type TeacherVariant, type TeacherPosition } from "./TeacherPopup";
+export { Confetti } from "./Confetti";
