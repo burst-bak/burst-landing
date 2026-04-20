@@ -53,6 +53,7 @@ import {
 import { SessionEngine } from "@/lib/session-engine";
 import type { GamePhase } from "@/types/game";
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 
 interface PlayPageProps {
@@ -78,6 +79,12 @@ export default function PlayPage({ params }: PlayPageProps) {
     message: string;
     large?: boolean;
   }>({ visible: false, message: "" });
+
+  // 발사 포물선 애니메이션용 projectile 목록
+  const [projectiles, setProjectiles] = useState<
+    Array<{ id: number; startX: number }>
+  >([]);
+  const projectileSeqRef = useRef(0);
 
   const bakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitionedLiveRef = useRef(false);
@@ -153,8 +160,23 @@ export default function PlayPage({ params }: PlayPageProps) {
     };
   }, []);
 
+  // ─── projectile 스폰 (포물선으로 날아가는 모래주머니) ──────────────
+  const spawnProjectile = useCallback(() => {
+    projectileSeqRef.current += 1;
+    const id = projectileSeqRef.current;
+    // 약간의 좌우 랜덤 오프셋 (리얼리즘)
+    const startX = (Math.random() - 0.5) * 40;
+    setProjectiles((prev) => [...prev, { id, startX }]);
+    // 애니메이션 끝난 뒤 제거
+    setTimeout(() => {
+      setProjectiles((prev) => prev.filter((p) => p.id !== id));
+    }, 600);
+  }, []);
+
   // ─── 발사 핸들러 ─────────────────────────────────────────────────
   const handleFire = useCallback(async () => {
+    spawnProjectile();
+
     // WAITING일 때는 연습 투척 (서버 호출 없음)
     if (phase === "WAITING") {
       practiceCountRef.current += 1;
@@ -211,7 +233,7 @@ export default function PlayPage({ params }: PlayPageProps) {
       SessionEngine.transition("ENDED");
       refresh();
     }
-  }, [phase, smash, refresh]);
+  }, [phase, smash, refresh, spawnProjectile]);
 
   // ─── Teacher 자동 닫기 ─────────────────────────────────────────────
   useEffect(() => {
@@ -463,6 +485,54 @@ export default function PlayPage({ params }: PlayPageProps) {
           )}
         </div>
       </div>
+
+      {/* ═══════════════ 날아가는 모래주머니 (포물선) ═══════════════ */}
+      <AnimatePresence>
+        {projectiles.map((p) => (
+          <motion.div
+            key={p.id}
+            initial={{
+              x: p.startX,
+              y: 0,
+              scale: 1,
+              rotate: 0,
+              opacity: 1,
+            }}
+            animate={{
+              // y: 아래→위, 중간에 약간 높이 올라갔다가 박 위치에서 소멸 (포물선 느낌)
+              y: ["0px", "-55dvh", "-60dvh"],
+              x: [p.startX, p.startX * 0.4, 0],
+              scale: [1, 0.65, 0.4],
+              rotate: [0, 300, 540],
+              opacity: [1, 1, 0],
+            }}
+            transition={{
+              duration: 0.5,
+              ease: "easeOut",
+              times: [0, 0.75, 1],
+            }}
+            style={{
+              position: "fixed",
+              bottom: "calc(env(safe-area-inset-bottom) + 80px)",
+              left: "50%",
+              marginLeft: -28,
+              width: 56,
+              height: 56,
+              zIndex: 30,
+              pointerEvents: "none",
+            }}
+          >
+            <Image
+              src="/sand-bag.png"
+              alt=""
+              width={56}
+              height={56}
+              draggable={false}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
       {/* ═══════════════ 선생님 팝업 (연습 투척 3회+) ═══════════════ */}
       <TeacherPopup
