@@ -43,7 +43,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState | null>(null);
 
   const refresh = useCallback(() => {
-    setSession(SessionEngine.getState());
+    const next = SessionEngine.getState();
+    // 🚨 값이 동일하면 setState 스킵 — 리렌더 무한 루프 방지
+    setSession((prev) => {
+      if (prev === next) return prev;
+      if (prev && next && serializeSession(prev) === serializeSession(next)) {
+        return prev;
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -64,4 +72,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+}
+
+/** 세션 상태의 안정적 비교용 직렬화 (shallow equal 대용) */
+function serializeSession(s: SessionState): string {
+  return `${s.eventId}|${s.phase}|${s.terminalState}|${s.myHitCount}|${s.openAt}|${s.closeAt}|${s.isWinner}|${s.scenario}`;
 }

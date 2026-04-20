@@ -34,7 +34,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import { useAuth, useGame, useRouteGuard, useServerTime } from "@/hooks";
 import { SessionEngine } from "@/lib/session-engine";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 interface WaitingPageProps {
   params: Promise<{ eventId: string }>;
@@ -58,16 +58,19 @@ export default function WaitingPage({ params }: WaitingPageProps) {
 
   // 카운트다운 오버레이 — openAt - 3s 에 트리거
   const [showCountdown, setShowCountdown] = useState(false);
+  const hasTransitionedRef = useRef(false);
 
   const openAt = session?.openAt ?? 0;
   const closeAt = session?.closeAt ?? 0;
   const remainingMs = Math.max(0, openAt - serverNow);
   const secondsLeft = Math.ceil(remainingMs / 1000);
 
-  // openAt에 도달하면 자동 전환
+  // openAt에 도달하면 자동 전환 (1회만)
   useEffect(() => {
     if (!session || !isReady) return;
+    if (hasTransitionedRef.current) return;
     if (remainingMs <= 0) {
+      hasTransitionedRef.current = true;
       SessionEngine.transition("LIVE");
       refresh();
       router.replace(`/play/${eventId}`);
