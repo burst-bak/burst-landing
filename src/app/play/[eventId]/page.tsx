@@ -550,6 +550,46 @@ export default function PlayPage({ params }: PlayPageProps) {
         />
       )}
 
+      {/* ═══════════════ 결과 다시보기 플로팅 버튼 (ENDED + Modal 닫혔을 때) ═══════════════ */}
+      <AnimatePresence>
+        {phase === "ENDED" && !showResultModal && (
+          <motion.button
+            key="replay-btn"
+            initial={{ opacity: 0, scale: 0.9, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -8 }}
+            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+            onClick={() => setShowResultModal(true)}
+            style={{
+              position: "fixed",
+              top: "calc(env(safe-area-inset-top) + 12px)",
+              right: 12,
+              zIndex: 50,
+              padding: "10px 14px",
+              background: "#FFFFFF",
+              color: "#3D9E94",
+              border: "1px solid #D1E8E4",
+              borderRadius: 9999,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow:
+                "0 8px 20px -6px rgba(15,23,42,0.18), 0 0 0 1px rgba(91,191,181,0.1)",
+            }}
+            whileHover={{ y: -2, boxShadow: "0 12px 24px -6px rgba(15,23,42,0.22)" }}
+            whileTap={{ scale: 0.96 }}
+            aria-label="결과 다시보기"
+          >
+            <span aria-hidden>🎯</span>
+            <span className="hidden sm:inline">결과 다시보기</span>
+            <span className="sm:hidden">결과</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* ═══════════════ 결과 Modal (ENDED) ═══════════════ */}
       <ResultModal
         open={showResultModal}
