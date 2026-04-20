@@ -2,82 +2,201 @@
 
 /**
  * ============================================================================
- * /play/[eventId] — 10초 게임 (핵심 페이지)
+ * /play/[eventId] — 단일 통합 게임 페이지 (v2.1 재설계 2026-04-20)
  * ============================================================================
  *
- * 🎯 구성
- *  - 좌상단: GameTimer (9.234 형태)
- *  - 우측 세로: Thermometer (burst ratio)
- *  - 중앙: Bak (박)
- *  - 하단: Sandbag (드래그 입력)
+ * 🎯 설계 원칙
+ *  - 페이지 전환 없음. WAITING → LIVE → ENDED 전부 한 화면에서.
+ *  - 박 + 모래주머니는 메인에 항상 노출 (몰입감)
+ *  - HUD(카운트다운·타이머·온도계)는 phase 따라 오버레이
+ *  - 결과는 Modal로 (ResultModal), 닫아도 박은 계속 보임
  *
- * 📌 흐름
- *  1. useRouteGuard("play") — phase 검증 + GuardShell Skeleton
- *  2. useServerTime + useBurstGauge — 실시간 서버 상태
- *  3. useSmash — 발사 요청 (쿨다운·멱등성 내장)
- *  4. Sandbag.onFire → useSmash.smash() → response 처리
- *     - HIT: Bak 흔들림 (shaking 상태 350ms)
- *     - LAST_HIT: 입력 즉시 잠금 + 결과 애니메이션 0.8~1s → result 페이지
- *     - REJECT: 무시 (UI가 이미 피드백 중)
- *  5. 게임 종료 자동 감지 (closeAt 도달) → result 페이지 자동 이동
+ * 🎯 Phase별 동작
+ *   WAITING
+ *     - 상단 카운트다운 "5초" 표시
+ *     - 모래주머니 = 연습 투척 (선생님 팝업 3회차+)
+ *     - openAt 도달 시 3-2-1-GO 오버레이 → LIVE 전환 (URL 변경 없음)
+ *   LIVE
+ *     - 상단 타이머 "9.234" + 우측 온도계
+ *     - 모래주머니 = 실제 발사 (useSmash, 쿨다운 500ms)
+ *     - LAST_HIT 또는 closeAt 도달 시 ENDED 전환
+ *   ENDED
+ *     - HUD 페이드 아웃
+ *     - Bak 상태 = bursted (이미 터진 박이 흔들림)
+ *     - 모래주머니 계속 작동 — 서버는 REJECT 하지만 UX(아쉬움 해소)
+ *     - 0.5초 후 ResultModal 등장
  *
- * 📌 SOLD_OUT 이후 (v2.1 확정)
- *  - 박은 "bursted" 상태 (이미 터진 채 흔들림)
- *  - 입력은 계속 받되 서버가 REJECT → 던지는 감정만 해소
- *
- * 📌 접근성
- *  - Thermometer/Bak 맥동은 prefers-reduced-motion 반영 (각 컴포넌트 내부 처리)
+ * 📌 URL 공유
+ *  - /waiting/[eventId] 는 /play/[eventId]로 자동 redirect
+ *  - /result/success|fail/[eventId]는 직접 공유용으로 남김 (별도 페이지)
  * ============================================================================
  */
 
 import {
   Bak,
   type BakState,
+  CountdownOverlay,
   GameTimer,
+  ResultModal,
   Sandbag,
+  TeacherPopup,
   Thermometer,
 } from "@/components/game";
 import Skeleton from "@/components/ui/Skeleton";
 import {
+  useAuth,
   useBurstGauge,
   useGame,
-  useRouteGuard,
   useServerTime,
   useSmash,
 } from "@/hooks";
 import { SessionEngine } from "@/lib/session-engine";
-import { useRouter } from "next/navigation";
+import type { GamePhase } from "@/types/game";
+import { AnimatePresence, motion } from "framer-motion";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 
 interface PlayPageProps {
   params: Promise<{ eventId: string }>;
 }
 
-/** 종료 직후 결과 화면 연출 시간 (v2.1: 0.8~1s) */
-const TERMINAL_ANIMATION_MS = 1000;
+/** ENDED 전환 후 Modal 등장까지의 딜레이 (박 터지는 연출 시간) */
+const MODAL_DELAY_MS = 700;
 
 export default function PlayPage({ params }: PlayPageProps) {
   const { eventId } = use(params);
-  const router = useRouter();
+  const { user } = useAuth();
   const { session, refresh } = useGame();
   const { serverNow, isReady } = useServerTime();
-  const { isResolving } = useRouteGuard("play", eventId);
   const gauge = useBurstGauge();
   const { smash, isCoolingDown } = useSmash(eventId);
 
   const [bakState, setBakState] = useState<BakState>("idle");
-  const [inputLocked, setInputLocked] = useState(false);
-  const bakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasNavigatedRef = useRef(false);
+  const [showCountdownOverlay, setShowCountdownOverlay] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [practiceToast, setPracticeToast] = useState<{
+    visible: boolean;
+    message: string;
+    large?: boolean;
+  }>({ visible: false, message: "" });
 
-  // ─── 발사 핸들러 ─────────────────────────────────────────────────────
+  const bakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionedLiveRef = useRef(false);
+  const transitionedEndedRef = useRef(false);
+  const modalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const practiceCountRef = useRef(0);
+
+  // 세션 없으면 초기화
+  useEffect(() => {
+    SessionEngine.ensure(eventId);
+    refresh();
+  }, [eventId, refresh]);
+
+  const phase: GamePhase = session?.phase ?? "WAITING";
+  const openAt = session?.openAt ?? 0;
+  const closeAt = session?.closeAt ?? 0;
+  const terminalState = session?.terminalState ?? null;
+  const isWinner = session?.isWinner ?? false;
+
+  // ─── WAITING → LIVE 자동 전환 ───────────────────────────────────────
+  useEffect(() => {
+    if (!session || !isReady) return;
+    if (phase !== "WAITING") return;
+    if (transitionedLiveRef.current) return;
+    if (serverNow >= openAt) {
+      transitionedLiveRef.current = true;
+      SessionEngine.transition("LIVE");
+      refresh();
+    }
+  }, [session, isReady, phase, serverNow, openAt, refresh]);
+
+  // ─── CountdownOverlay (openAt - 3s 도달 시 1회 띄움) ──────────────
+  useEffect(() => {
+    if (phase !== "WAITING" || !isReady || showCountdownOverlay) return;
+    const remaining = openAt - serverNow;
+    if (remaining <= 3000 && remaining > 0) {
+      setShowCountdownOverlay(true);
+    }
+  }, [phase, openAt, serverNow, isReady, showCountdownOverlay]);
+
+  // ─── LIVE → ENDED 자동 전환 (시간 만료) ─────────────────────────────
+  useEffect(() => {
+    if (!session || !isReady) return;
+    if (phase !== "LIVE") return;
+    if (transitionedEndedRef.current) return;
+    if (serverNow >= closeAt) {
+      transitionedEndedRef.current = true;
+      SessionEngine.transition("ENDED");
+      if (!SessionEngine.getState()?.terminalState) {
+        SessionEngine.setTerminal("TIME_UP");
+      }
+      refresh();
+    }
+  }, [session, isReady, phase, serverNow, closeAt, refresh]);
+
+  // ─── ENDED 진입 시 Modal 등장 ───────────────────────────────────────
+  useEffect(() => {
+    if (phase !== "ENDED") return;
+    if (showResultModal) return;
+    if (modalTimerRef.current) return;
+    // 박 터지는 연출 시간 후 Modal
+    setBakState("bursted");
+    modalTimerRef.current = setTimeout(() => {
+      setShowResultModal(true);
+    }, MODAL_DELAY_MS);
+  }, [phase, showResultModal]);
+
+  // ─── 정리 ────────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
+      if (modalTimerRef.current) clearTimeout(modalTimerRef.current);
+    };
+  }, []);
+
+  // ─── 발사 핸들러 ─────────────────────────────────────────────────
   const handleFire = useCallback(async () => {
-    if (inputLocked) return;
+    // WAITING일 때는 연습 투척 (서버 호출 없음)
+    if (phase === "WAITING") {
+      practiceCountRef.current += 1;
+      const count = practiceCountRef.current;
+
+      // 박 흔들림 (쿨다운은 Sandbag 컴포넌트의 내부 쿨다운 로직에 맡김)
+      if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
+      setBakState("shaking");
+      bakTimerRef.current = setTimeout(() => {
+        setBakState("idle");
+      }, 350);
+
+      // v2.1: 3회차 큰 팝업, 이후 작은 말풍선
+      if (count === 3) {
+        setPracticeToast({
+          visible: true,
+          message: "어허! 거 좀 하지마!",
+          large: true,
+        });
+      } else if (count > 3) {
+        setPracticeToast({
+          visible: true,
+          message: "거참…",
+          large: false,
+        });
+      }
+      return;
+    }
+
+    // ENDED일 때는 서버 호출은 하되 박은 이미 터진 상태 유지
+    if (phase === "ENDED") {
+      if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
+      setBakState("bursted"); // 유지
+      // 아쉬움 해소용 살짝 흔들림은 bursted 애니메이션에 이미 있음
+      return;
+    }
+
+    // LIVE — 실제 발사
     const response = await smash();
     if (!response) return;
 
     if (response.status === "HIT" || response.status === "LAST_HIT") {
-      // Bak 흔들림 피드백 (350ms)
       if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
       setBakState((prev) => (prev === "bursted" ? "bursted" : "shaking"));
       bakTimerRef.current = setTimeout(() => {
@@ -86,72 +205,30 @@ export default function PlayPage({ params }: PlayPageProps) {
     }
 
     if (response.status === "LAST_HIT") {
-      setInputLocked(true);
-      setBakState("bursted");
       refresh();
-      // 결과 애니메이션 후 이동
-      scheduleResultNavigation();
-    }
-  }, [smash, inputLocked, refresh]);
-
-  // ─── 게임 종료 감지 (시간 경과) ─────────────────────────────────────
-  useEffect(() => {
-    if (!session || !isReady) return;
-    if (hasNavigatedRef.current) return;
-
-    const now = Date.now();
-
-    // 이미 terminal 상태면 즉시 result로
-    if (session.terminalState || session.phase === "ENDED") {
-      scheduleResultNavigation();
-      return;
-    }
-
-    // closeAt 도달 → TIME_UP 확정
-    if (now >= session.closeAt) {
+      // ENDED 전환은 session refresh 후 다음 useEffect에서 감지됨 (이미 setTerminal 호출됨)
+      // 여기서 안전하게 즉시 ENDED 플래그도 설정
       SessionEngine.transition("ENDED");
-      if (!SessionEngine.getState()?.terminalState) {
-        SessionEngine.setTerminal("TIME_UP");
-      }
       refresh();
-      scheduleResultNavigation();
     }
-  }, [session, isReady, serverNow, refresh]);
+  }, [phase, smash, refresh]);
 
-  // ─── SOLD_OUT 이후 박 상태 유지 ────────────────────────────────────
+  // ─── Teacher 자동 닫기 ─────────────────────────────────────────────
   useEffect(() => {
-    if (session?.terminalState === "SOLD_OUT") {
-      setBakState("bursted");
-    }
-  }, [session?.terminalState]);
+    if (!practiceToast.visible) return;
+    const timer = setTimeout(
+      () => setPracticeToast((t) => ({ ...t, visible: false })),
+      practiceToast.large ? 2200 : 1400,
+    );
+    return () => clearTimeout(timer);
+  }, [practiceToast]);
 
-  const scheduleResultNavigation = useCallback(() => {
-    if (hasNavigatedRef.current) return;
-    hasNavigatedRef.current = true;
-    setInputLocked(true);
-    setTimeout(() => {
-      const latest = SessionEngine.getState();
-      const path =
-        latest?.terminalState === "BURST"
-          ? `/result/success/${eventId}`
-          : `/result/fail/${eventId}`;
-      router.replace(path);
-    }, TERMINAL_ANIMATION_MS);
-  }, [eventId, router]);
-
-  // 컴포넌트 언마운트 시 타이머 정리
-  useEffect(() => {
-    return () => {
-      if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
-    };
-  }, []);
-
-  // ─── GuardShell ───────────────────────────────────────────────────
-  if (isResolving || !session || !isReady) {
+  // ─── 렌더 ────────────────────────────────────────────────────────
+  if (!session || !isReady) {
     return <PlaySkeleton />;
   }
 
-  const ratio = gauge?.ratio ?? 0;
+  const remainingToOpen = Math.max(0, openAt - serverNow);
 
   return (
     <main
@@ -160,53 +237,104 @@ export default function PlayPage({ params }: PlayPageProps) {
         inset: 0,
         height: "100dvh",
         width: "100vw",
-        background: "linear-gradient(180deg, #0D1B1A 0%, #18302E 100%)",
         overflow: "hidden",
-        color: "#F0FAF8",
         userSelect: "none",
         WebkitUserSelect: "none",
+        background: phaseBackground(phase),
+        transition: "background 0.6s ease",
+        color: "#F0FAF8",
       }}
     >
-      {/* 상단: 타이머 */}
-      <div
-        style={{
-          position: "absolute",
-          top: "calc(env(safe-area-inset-top) + 16px)",
-          left: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-        }}
-      >
-        <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: "0.05em" }}>
-          남은 시간
-        </div>
-        <div style={{ color: "#F0FAF8" }}>
-          <GameTimer serverNow={serverNow} closeAt={session.closeAt} />
-        </div>
-      </div>
+      {/* ═══════════════ 상단 HUD (phase별) ═══════════════ */}
+      <AnimatePresence mode="wait">
+        {phase === "WAITING" && (
+          <motion.div
+            key="hud-waiting"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            style={{
+              position: "absolute",
+              top: "calc(env(safe-area-inset-top) + 20px)",
+              left: 0,
+              right: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 2,
+              zIndex: 5,
+            }}
+          >
+            <span style={{ fontSize: 11, color: "#3D9E94", letterSpacing: "0.1em" }}>
+              박 터트리기 Vol.1
+            </span>
+            <span style={{ fontSize: 10, color: "#999" }}>시작까지</span>
+            <span
+              style={{
+                fontSize: remainingToOpen < 10000 ? 48 : 36,
+                fontWeight: 800,
+                color: remainingToOpen < 10000 ? "#D4443A" : "#1C1917",
+                fontVariantNumeric: "tabular-nums",
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {formatCountdown(remainingToOpen)}
+            </span>
+            <span style={{ fontSize: 10, color: "#999", marginTop: 2 }}>
+              {user?.nickname ?? "게스트"}
+            </span>
+          </motion.div>
+        )}
 
-      {/* 우측: 온도계 */}
-      <div
-        style={{
-          position: "absolute",
-          top: "calc(env(safe-area-inset-top) + 60px)",
-          right: 20,
-        }}
-      >
-        <Thermometer
-          ratio={ratio}
-          thresholdRatio={0.8}
-          width={32}
-          height={380}
-        />
-      </div>
+        {phase === "LIVE" && (
+          <motion.div
+            key="hud-live"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "absolute",
+              top: "calc(env(safe-area-inset-top) + 18px)",
+              left: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              zIndex: 5,
+            }}
+          >
+            <span style={{ fontSize: 11, opacity: 0.65, letterSpacing: "0.05em" }}>
+              남은 시간
+            </span>
+            <GameTimer serverNow={serverNow} closeAt={closeAt} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* 중앙: 박 */}
+      {/* ═══════════════ 우측 온도계 (LIVE만) ═══════════════ */}
+      <AnimatePresence>
+        {phase === "LIVE" && (
+          <motion.div
+            key="thermo"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            style={{
+              position: "absolute",
+              top: "calc(env(safe-area-inset-top) + 80px)",
+              right: 18,
+              zIndex: 5,
+            }}
+          >
+            <Thermometer ratio={gauge?.ratio ?? 0} thresholdRatio={0.8} width={28} height={320} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══════════════ 중앙 박 (항상 고정) ═══════════════ */}
       <div
         style={{
           position: "absolute",
-          top: "48%",
+          top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
         }}
@@ -214,47 +342,71 @@ export default function PlayPage({ params }: PlayPageProps) {
         <Bak state={bakState} size={240} />
       </div>
 
-      {/* 하단 안내 + 모래주머니 */}
+      {/* ═══════════════ 하단 모래주머니 (항상 고정) ═══════════════ */}
       <div
         style={{
           position: "absolute",
-          bottom: "calc(env(safe-area-inset-bottom) + 32px)",
+          bottom: "calc(env(safe-area-inset-bottom) + 36px)",
           left: 0,
           right: 0,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 12,
+          gap: 8,
+          zIndex: 5,
         }}
       >
-        <div style={{ fontSize: 11, opacity: 0.55, letterSpacing: "0.05em" }}>
-          당겨서 발사
-        </div>
+        <span
+          style={{
+            fontSize: 11,
+            color: phase === "LIVE" ? "#F0FAF8" : "#5A5A5A",
+            opacity: 0.65,
+            letterSpacing: "0.05em",
+          }}
+        >
+          {phase === "WAITING"
+            ? "연습 투척"
+            : phase === "LIVE"
+              ? "당겨서 발사"
+              : "박은 이미 터졌어요"}
+        </span>
         <Sandbag
           onFire={handleFire}
-          disabled={inputLocked}
           isCoolingDown={isCoolingDown}
           cooldownMs={500}
-          size={110}
+          size={phase === "LIVE" ? 110 : 96}
           inputMode="drag"
         />
       </div>
 
-      {/* 종료 오버레이 (입력 잠금 + 페이드 처리) */}
-      {inputLocked && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(0,0,0,0.25)",
-            pointerEvents: "all",
-            transition: "background 0.3s",
-          }}
+      {/* ═══════════════ 선생님 팝업 (연습 투척 3회+) ═══════════════ */}
+      <TeacherPopup
+        visible={practiceToast.visible}
+        message={practiceToast.message}
+        variant="scold"
+        position="bottom-right"
+      />
+
+      {/* ═══════════════ 3-2-1-GO 오버레이 ═══════════════ */}
+      {showCountdownOverlay && (
+        <CountdownOverlay
+          startAt={openAt - 3000}
+          onComplete={() => setShowCountdownOverlay(false)}
         />
       )}
+
+      {/* ═══════════════ 결과 Modal (ENDED) ═══════════════ */}
+      <ResultModal
+        open={showResultModal}
+        terminalState={terminalState}
+        isWinner={isWinner}
+        onClose={() => setShowResultModal(false)}
+      />
     </main>
   );
 }
+
+// ─── 서브 유틸 ───────────────────────────────────────────────────
 
 function PlaySkeleton() {
   return (
@@ -265,10 +417,32 @@ function PlaySkeleton() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0D1B1A",
+        background: "#F0FAF8",
       }}
     >
       <Skeleton width="220px" height="220px" />
     </main>
   );
+}
+
+function phaseBackground(phase: GamePhase): string {
+  switch (phase) {
+    case "LIVE":
+      return "linear-gradient(180deg, #0D1B1A 0%, #18302E 100%)";
+    case "ENDED":
+      return "linear-gradient(180deg, #FFF9E0 0%, #F0FAF8 60%, #FFFFFF 100%)";
+    default:
+      return "linear-gradient(180deg, #F0FAF8 0%, #FFFFFF 60%)";
+  }
+}
+
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  if (total <= 60) return `${total}초`;
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if (m < 60) return `${m}:${s.toString().padStart(2, "0")}`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h}:${mm.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
