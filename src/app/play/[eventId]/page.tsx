@@ -343,16 +343,14 @@ export default function PlayPage({ params }: PlayPageProps) {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ 중앙 박 (랜딩과 동일 비율, 항상 고정) ═══════════════ */}
+      {/* ═══════════════ 상단 정렬 박 (최대한 위로) ═══════════════ */}
       <div
         style={{
           position: "absolute",
-          top: 0,
+          top: "calc(env(safe-area-inset-top) + 56px)",
           left: 0,
           right: 0,
-          bottom: 0,
           display: "flex",
-          alignItems: "center",
           justifyContent: "center",
           pointerEvents: "none",
         }}
@@ -398,13 +396,72 @@ export default function PlayPage({ params }: PlayPageProps) {
               ? "당겨서 발사"
               : "박은 이미 터졌어요"}
         </span>
-        <Sandbag
-          onFire={handleFire}
-          isCoolingDown={isCoolingDown}
-          cooldownMs={500}
-          size={56}
-          inputMode="drag"
-        />
+
+        {/* 모래주머니 + 우측 후방 드래그 방향 인디케이터 */}
+        <div style={{ position: "relative" }}>
+          <Sandbag
+            onFire={handleFire}
+            isCoolingDown={isCoolingDown}
+            cooldownMs={500}
+            size={56}
+            inputMode="drag"
+          />
+          {/* 인디케이터: 모래주머니 우측 아래로 향하는 화살표 + 설명 */}
+          {phase !== "ENDED" && (
+            <motion.div
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              style={{
+                position: "absolute",
+                right: -72,
+                bottom: -6,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                pointerEvents: "none",
+              }}
+              aria-hidden
+            >
+              <motion.svg
+                width="40"
+                height="36"
+                viewBox="0 0 40 36"
+                style={{ overflow: "visible" }}
+                animate={{ y: [0, 3, 0] }}
+                transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                {/* 곡선 화살표: 모래주머니에서 우측 아래로 */}
+                <path
+                  d="M 4 4 Q 22 4, 28 24"
+                  stroke="#3D9E94"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+                {/* 화살촉 */}
+                <path
+                  d="M 24 20 L 28 26 L 33 22"
+                  stroke="#3D9E94"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </motion.svg>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "#3D9E94",
+                  fontWeight: 700,
+                  marginTop: 2,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                당겼다 놓기
+              </span>
+            </motion.div>
+          )}
+        </div>
       </div>
 
       {/* ═══════════════ 선생님 팝업 (연습 투척 3회+) ═══════════════ */}
