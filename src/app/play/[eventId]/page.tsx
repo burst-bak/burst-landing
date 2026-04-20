@@ -343,11 +343,11 @@ export default function PlayPage({ params }: PlayPageProps) {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ 상단 정렬 박 (최대한 위로) ═══════════════ */}
+      {/* ═══════════════ 상단 정렬 박 (최대한 위로 — 2cm up) ═══════════════ */}
       <div
         style={{
           position: "absolute",
-          top: "calc(env(safe-area-inset-top) + 56px)",
+          top: "calc(env(safe-area-inset-top) - 20px)",
           left: 0,
           right: 0,
           display: "flex",

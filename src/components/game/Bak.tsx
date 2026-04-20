@@ -57,7 +57,7 @@ export function Bak({ state = "idle", size = 220, variant = "default" }: BakProp
     },
   };
 
-  // hero 모드 — 랜딩 페이지와 동일 비율·크기감
+  // hero 모드 — 랜딩과 유사하되 play 페이지 전용 -10% 축소
   if (variant === "hero") {
     return (
       <motion.div
@@ -71,7 +71,7 @@ export function Bak({ state = "idle", size = 220, variant = "default" }: BakProp
           alt="박"
           width={680}
           height={941}
-          className="select-none drop-shadow-2xl w-[156%] sm:w-[137%] md:w-[110%] max-w-[910px] h-auto"
+          className="select-none drop-shadow-2xl w-[140%] sm:w-[123%] md:w-[99%] max-w-[820px] h-auto"
           style={{ transform: "perspective(500px) rotateX(-5deg) translateX(-4%)" }}
           priority
           draggable={false}
