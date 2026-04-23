@@ -139,30 +139,53 @@ export default function AdminEventsPage() {
     [refresh],
   );
 
+  // 🔒 비로그인 / 비어드민 → 로그인 안내만. 운영·감사 UI 자체를 렌더하지 않음.
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-zinc-100 p-6 font-mono text-sm">
+        <p>loading...</p>
+      </main>
+    );
+  }
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-zinc-950 text-zinc-100 p-6 font-mono text-sm">
+        <h1 className="text-xl mb-3">/admin/events</h1>
+        <p className="mb-4 text-zinc-400">
+          어드민 전용 페이지입니다. 카카오 로그인 후 화이트리스트에 등록된
+          계정만 접근할 수 있습니다.
+        </p>
+        <button
+          onClick={login}
+          className="px-4 py-2 bg-yellow-400 text-black rounded font-bold"
+        >
+          카카오 로그인
+        </button>
+      </main>
+    );
+  }
+  // 화이트리스트 미포함(403) 은 refresh() 에서 error="어드민 권한 없음" 세팅되어 표시됨.
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 p-6 font-mono text-sm">
       <h1 className="text-xl mb-4">/admin/events — 이벤트 관리</h1>
 
       {/* Auth */}
       <section className="mb-4 p-3 bg-zinc-900 rounded flex items-center gap-3">
-        {isLoading ? (
-          <span>loading...</span>
-        ) : isAuthenticated ? (
-          <span>
-            ✅ {user?.nickname}{" "}
-            <span className="text-zinc-500">(id={user?.id})</span>
-          </span>
-        ) : (
-          <>
-            <span>⛔ 비로그인</span>
-            <button
-              onClick={login}
-              className="px-3 py-1 bg-yellow-400 text-black rounded"
-            >
-              카카오 로그인
-            </button>
-          </>
-        )}
+        <span>
+          ✅ {user?.nickname}{" "}
+          <span className="text-zinc-500">(id={user?.id})</span>
+        </span>
+        <button
+          onClick={async () => {
+            const { logout } = await import("@/lib/api/burst-api");
+            await logout();
+            window.location.href = "/admin/events";
+          }}
+          className="ml-auto px-3 py-1 bg-zinc-700 rounded text-xs"
+        >
+          로그아웃
+        </button>
       </section>
 
       {error && (
