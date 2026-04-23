@@ -1,6 +1,6 @@
 "use client";
 
-import { postSmash } from "@/lib/mock/mock-api";
+import { postSmash } from "@/lib/api/burst-api";
 import { SMASH_COOLDOWN_MS } from "@/lib/mock/mock-data";
 import type { SmashResponse } from "@/types/game";
 import { useCallback, useRef, useState } from "react";

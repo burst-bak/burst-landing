@@ -1,50 +1,89 @@
 /**
  * ============================================================================
- * AuthContext — 인증 상태 Provider
+ * AuthContext — 인증 상태 Provider (실 백엔드 연동)
  * ============================================================================
  *
- * 🎯 MVP 역할 (mock)
- *  - 기본 로그인 상태 제공 (찬호와 협의: 개발 편의)
- *  - useAuth() 훅으로 페이지·가드에서 소비
+ * 🎯 동작
+ *  - 마운트 시 GET /api/v1/auth/me 로 세션 확인
+ *  - login(): 카카오 OAuth 리다이렉트
+ *  - logout(): POST /logout + 상태 초기화
  *
- * 📌 백엔드 연동 시 교체 순서
- *  1. Kakao JS SDK + 카카오 로그인 버튼 → /api/v1/auth/kakao/callback 호출
- *  2. 서버가 세션 쿠키 Set-Cookie (Redis 세션, HttpOnly)
- *  3. 이 Provider는 /api/v1/me 로 현재 유저 조회 → 상태 갱신
- *  4. 로그아웃 / 강제 세션 만료 감지는 401 응답으로 처리
+ * 🔄 세션 상태 재조회
+ *  - 카카오 OAuth 성공 후 /?loggedIn=1 같은 리다이렉트 쿼리가 없어도
+ *    페이지 로드 시 fetchMe 로 자동 갱신
+ *
+ * 🚨 SSR
+ *  - fetchMe 는 브라우저에서만 (document.cookie 필요). useEffect 내부 호출로 제약.
  * ============================================================================
  */
 
 "use client";
 
-import { MOCK_USER } from "@/lib/mock/mock-data";
+import { fetchMe, loginWithKakao, logout as apiLogout } from "@/lib/api/burst-api";
 import type { AuthUser } from "@/types/game";
-import { createContext, useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 export interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  /** 로그인 트리거 (mock에서는 상태 변경 없음 — 늘 로그인 상태) */
+  isLoading: boolean;
   login: () => Promise<void>;
-  /** 로그아웃 트리거 (mock은 no-op, 실제는 POST /logout) */
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const me = await fetchMe();
+      setUser(me);
+    } catch (e) {
+      console.error("[auth] fetchMe failed", e);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const login = useCallback(async () => {
+    loginWithKakao();
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await apiLogout();
+    } catch (e) {
+      console.error("[auth] logout failed", e);
+    }
+    setUser(null);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: MOCK_USER,
-      isAuthenticated: true,
-      login: async () => {
-        // TODO: 실제 구현 시 카카오 OAuth 리다이렉트
-      },
-      logout: async () => {
-        // TODO: 실제 구현 시 세션 쿠키 삭제 + 서버 알림
-      },
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      login,
+      logout,
+      refresh,
     }),
-    [],
+    [user, isLoading, login, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
