@@ -174,6 +174,44 @@ export const SessionEngine = {
   },
 
   /**
+   * 실 백엔드 이벤트 데이터로 세션 초기화·동기화.
+   * - 기존 세션이 있고 eventId 가 같으면 openAt/closeAt 만 re-sync (서버가 갱신된 경우 대비)
+   * - 없으면 WAITING 상태로 새 세션 생성
+   * - scenario 필드는 "wait5" 로 고정 (타입 충족용, 실사용 안 함)
+   */
+  initFromServerEvent(
+    eventId: string,
+    serverOpenAtMs: number,
+    serverCloseAtMs: number,
+  ): SessionState {
+    if (shouldReset()) clearStorage();
+    const existing = readStorage();
+    if (existing && existing.eventId === eventId) {
+      const updated: SessionState = {
+        ...existing,
+        openAt: serverOpenAtMs,
+        closeAt: serverCloseAtMs,
+      };
+      writeStorage(updated);
+      return updated;
+    }
+    const now = Date.now();
+    const fresh: SessionState = {
+      eventId,
+      scenario: "wait5",
+      phase: "WAITING",
+      terminalState: null,
+      myHitCount: 0,
+      startedAt: now,
+      openAt: serverOpenAtMs,
+      closeAt: serverCloseAtMs,
+      isWinner: false,
+    };
+    writeStorage(fresh);
+    return fresh;
+  },
+
+  /**
    * 세션 보장 — 없으면 init, 있으면 기존 반환
    * 페이지 진입 시 첫 호출로 권장 (init을 매번 부르는 것보다 안전)
    */

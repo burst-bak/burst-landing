@@ -45,13 +45,14 @@ import {
 import Skeleton from "@/components/ui/Skeleton";
 import {
   useAuth,
-  useBurstGauge,
   useGame,
   useServerTime,
   useSmash,
 } from "@/hooks";
+import { useBurstGaugeReal } from "@/hooks/useBurstGaugeReal";
+import { fetchEvent } from "@/lib/api/burst-api";
 import { SessionEngine } from "@/lib/session-engine";
-import type { GamePhase } from "@/types/game";
+import type { GamePhase, TerminalState } from "@/types/game";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { use, useCallback, useEffect, useRef, useState } from "react";
@@ -68,7 +69,7 @@ export default function PlayPage({ params }: PlayPageProps) {
   const { user } = useAuth();
   const { session, refresh } = useGame();
   const { serverNow, isReady } = useServerTime();
-  const gauge = useBurstGauge();
+  const { gauge, terminal: wsTerminal } = useBurstGaugeReal(eventId);
   const { smash, isCoolingDown } = useSmash(eventId);
 
   const [bakState, setBakState] = useState<BakState>("idle");
@@ -92,11 +93,37 @@ export default function PlayPage({ params }: PlayPageProps) {
   const modalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const practiceCountRef = useRef(0);
 
-  // 세션 없으면 초기화
+  // 실 이벤트 fetch → SessionEngine 에 서버 openAt/closeAt 주입
   useEffect(() => {
-    SessionEngine.ensure(eventId);
-    refresh();
+    let cancelled = false;
+    (async () => {
+      try {
+        const ev = await fetchEvent(eventId);
+        if (cancelled) return;
+        SessionEngine.initFromServerEvent(eventId, ev.openAt, ev.closeAt);
+        refresh();
+      } catch (e) {
+        console.warn("[play] fetchEvent failed, fallback to mock session", e);
+        SessionEngine.ensure(eventId);
+        refresh();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [eventId, refresh]);
+
+  // WS terminal 수신 시 즉시 ENDED 로 전이 + terminalState 반영
+  useEffect(() => {
+    if (!wsTerminal) return;
+    const t = wsTerminal.terminalState as TerminalState;
+    if (!["SOLD_OUT", "BURST", "TIME_UP"].includes(t)) return;
+    if (!SessionEngine.getState()?.terminalState) {
+      SessionEngine.setTerminal(t);
+    }
+    SessionEngine.transition("ENDED");
+    refresh();
+  }, [wsTerminal, refresh]);
 
   const phase: GamePhase = session?.phase ?? "WAITING";
   const openAt = session?.openAt ?? 0;
