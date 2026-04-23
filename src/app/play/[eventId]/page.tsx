@@ -50,7 +50,7 @@ import {
   useSmash,
 } from "@/hooks";
 import { useBurstGaugeReal } from "@/hooks/useBurstGaugeReal";
-import { fetchEvent } from "@/lib/api/burst-api";
+import { fetchEventFull } from "@/lib/api/burst-api";
 import { SessionEngine } from "@/lib/session-engine";
 import type { GamePhase, TerminalState } from "@/types/game";
 import { AnimatePresence, motion } from "framer-motion";
@@ -94,13 +94,26 @@ export default function PlayPage({ params }: PlayPageProps) {
   const practiceCountRef = useRef(0);
 
   // 실 이벤트 fetch → SessionEngine 에 서버 openAt/closeAt 주입
+  // 이미 종료된 이벤트(SOLD_OUT/BURST/TIME_UP/CLOSED)는 즉시 ENDED 단계로 건너뜀
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const ev = await fetchEvent(eventId);
+        const ev = await fetchEventFull(eventId);
         if (cancelled) return;
         SessionEngine.initFromServerEvent(eventId, ev.openAt, ev.closeAt);
+        if (ev.terminalState) {
+          SessionEngine.setTerminal(ev.terminalState);
+        }
+        const isEnded = ["SOLD_OUT", "BURST", "TIME_UP", "CLOSED"].includes(
+          ev.state,
+        );
+        if (isEnded) {
+          SessionEngine.transition("LIVE");  // WAITING → LIVE 허용 전이
+          SessionEngine.transition("ENDED"); // LIVE → ENDED
+        } else if (ev.state === "LIVE") {
+          SessionEngine.transition("LIVE");
+        }
         refresh();
       } catch (e) {
         console.warn("[play] fetchEvent failed, fallback to mock session", e);

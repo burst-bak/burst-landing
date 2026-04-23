@@ -61,6 +61,38 @@ export async function fetchEvent(eventId: string): Promise<BurstEvent> {
   };
 }
 
+/**
+ * 서버 원본 필드까지 필요한 경우 (state, terminalState, announceAt 등).
+ */
+export interface FullEventResponse {
+  eventCode: string;
+  title: string;
+  openAt: number;
+  closeAt: number;
+  announceAt: number;
+  durationMs: number;
+  prizeAmountKrw: number;
+  state: "READY" | "LIVE" | "SOLD_OUT" | "BURST" | "TIME_UP" | "CLOSED";
+  terminalState: "SOLD_OUT" | "BURST" | "TIME_UP" | null;
+}
+
+export async function fetchEventFull(eventId: string): Promise<FullEventResponse> {
+  const res = await authFetch(`/api/v1/events/${eventId}`);
+  if (!res.ok) throw new Error(`fetchEventFull failed: ${res.status}`);
+  const d = await res.json();
+  return {
+    eventCode: d.eventCode,
+    title: d.title,
+    openAt: Date.parse(d.openAt),
+    closeAt: Date.parse(d.closeAt),
+    announceAt: Date.parse(d.announceAt),
+    durationMs: d.durationMs,
+    prizeAmountKrw: d.prizeAmountKrw,
+    state: d.state,
+    terminalState: d.terminalState,
+  };
+}
+
 // ── Smash ───────────────────────────────────────────────────────────────
 
 /**

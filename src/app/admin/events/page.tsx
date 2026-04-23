@@ -315,10 +315,16 @@ export default function AdminEventsPage() {
                     </button>
                   )}
                   <a
+                    href={`/play/${r.eventCode}`}
+                    className="ml-2 px-2 py-0.5 bg-emerald-600 rounded text-xs inline-block"
+                  >
+                    플레이
+                  </a>
+                  <a
                     href={`/live-demo?code=${r.eventCode}`}
                     className="ml-2 px-2 py-0.5 bg-sky-600 rounded text-xs inline-block"
                   >
-                    시연
+                    디버그
                   </a>
                 </td>
               </tr>
