@@ -17,6 +17,7 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
+import { useRealBurstGauge } from "@/hooks/useRealBurstGauge";
 import {
   fetchEvent,
   fetchResult,
@@ -41,10 +42,24 @@ export default function LiveDemoPage() {
   const [log, setLog] = useState<string[]>([]);
   const [cooldownUntil, setCooldownUntil] = useState<number>(0);
 
+  // STOMP 실시간 구독 — 게이지(250ms) + terminal(LAST_HIT 즉발)
+  const { gauge, terminal } = useRealBurstGauge(eventCode || null);
+
   const append = useCallback((l: string) => {
     const t = new Date().toISOString().slice(11, 23);
     setLog((cur) => [`[${t}] ${l}`, ...cur].slice(0, 30));
   }, []);
+
+  // terminal push 받으면 즉시 결과 조회
+  useEffect(() => {
+    if (!terminal || !eventCode) return;
+    append(
+      `WS terminal ← ${terminal.terminalState} winner=${terminal.winnerUserId}`,
+    );
+    fetchResult(eventCode, user?.id)
+      .then((r) => setResult(r))
+      .catch(() => {});
+  }, [terminal, eventCode, user?.id, append]);
 
   // URL ?code= 초기값
   useEffect(() => {
@@ -227,6 +242,9 @@ export default function LiveDemoPage() {
         )}
       </section>
 
+      {/* Gauge — WebSocket 실시간 (250ms push) */}
+      {gauge && <GaugePanel gauge={gauge} />}
+
       {/* Smash */}
       <section className="mb-4 p-3 bg-zinc-900 rounded">
         <div className="text-zinc-400 mb-2">발사</div>
@@ -272,6 +290,38 @@ export default function LiveDemoPage() {
         </pre>
       </section>
     </main>
+  );
+}
+
+/** WS 게이지 표시 — 최초 수신 remaining 을 재고로 간주해 소모 비율 계산. */
+function GaugePanel({ gauge }: { gauge: import("@/lib/ws/burst-stomp").BurstGaugePayload }) {
+  // 최초 수신값을 stock으로 보존
+  const stockRef = useRef<number | null>(null);
+  if (stockRef.current == null || gauge.remaining > stockRef.current) {
+    stockRef.current = gauge.remaining;
+  }
+  const stock = stockRef.current ?? 0;
+  const consumed = Math.max(0, stock - gauge.remaining);
+  const pct = stock > 0 ? (consumed / stock) * 100 : 0;
+  return (
+    <section className="mb-4 p-3 bg-zinc-900 rounded">
+      <div className="flex items-center justify-between text-zinc-400 mb-2 text-xs">
+        <span>게이지 (WS 250ms)</span>
+        <span>
+          state=<b>{gauge.state}</b> · timeLeft={gauge.timeLeftMs}ms · tick@
+          {new Date(gauge.serverTsMs).toISOString().slice(14, 23)}
+        </span>
+      </div>
+      <div className="relative h-6 bg-zinc-800 rounded overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-rose-500 transition-[width] duration-200"
+          style={{ width: `${pct.toFixed(1)}%` }}
+        />
+      </div>
+      <div className="text-xs mt-1 text-zinc-400">
+        소모: <b>{consumed}</b> / 시드(추정): <b>{stock}</b> · 남음: <b>{gauge.remaining}</b>
+      </div>
+    </section>
   );
 }
 
