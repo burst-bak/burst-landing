@@ -285,7 +285,14 @@ export default function AdminEventsPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-zinc-800">
-                <td className="py-1">{r.eventCode}</td>
+                <td className="py-1">
+                  <a
+                    href={`/admin/events/${r.eventCode}`}
+                    className="text-sky-400 hover:underline"
+                  >
+                    {r.eventCode}
+                  </a>
+                </td>
                 <td
                   className={`py-1 ${
                     r.state === "LIVE"
