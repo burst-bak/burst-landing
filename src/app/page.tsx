@@ -330,8 +330,9 @@ export default function LandingPage() {
       }}
     >
       {/* ── 운동장 가기 버튼 (우측 상단 고정 — v2.1 확정) ── */}
+      {/* 운영: NEXT_PUBLIC_DEFAULT_EVENT_CODE 로 현재 진행 이벤트 코드 주입. 미설정 시 test-event(로컬 시드) 폴백. */}
       <Link
-        href="/play/test-event"
+        href={`/play/${process.env.NEXT_PUBLIC_DEFAULT_EVENT_CODE ?? "test-event"}`}
         onClick={() => trackEvent("cta_playground_enter")}
         className="fixed z-50 rounded-full px-4 py-2 text-sm font-bold text-white
                    bg-gradient-to-b from-[#6DD4C8] via-[#5BBFB5] to-[#3D9E94]

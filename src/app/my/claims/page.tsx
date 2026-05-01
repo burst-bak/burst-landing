@@ -90,7 +90,7 @@ export default function MyClaimsPage() {
       <Frame>
         <p className="mb-3">로그인하면 당첨 내역을 확인할 수 있습니다.</p>
         <button
-          onClick={login}
+          onClick={() => login()}
           className="px-4 py-2 bg-yellow-400 text-black rounded font-bold"
         >
           카카오 로그인
