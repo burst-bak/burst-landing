@@ -68,8 +68,12 @@ export default function PlayPage({ params }: PlayPageProps) {
   const { eventId } = use(params);
   const { user } = useAuth();
   const { session, refresh } = useGame();
-  const { serverNow, isReady } = useServerTime();
   const { gauge, terminal: wsTerminal } = useBurstGaugeReal(eventId);
+  // 서버 시각 anchor: HTTP fetch 의 serverTime 으로 첫 anchor → STOMP gauge.serverNow 로 갱신.
+  // (gauge 가 안 들어오면 fetchEventFull 직후 setHttpServerTime 으로 anchor 만 잡음)
+  const [httpServerTime, setHttpServerTime] = useState<number | null>(null);
+  const latestServerTime = gauge?.serverNow ?? httpServerTime;
+  const { serverNow, isReady } = useServerTime(latestServerTime);
   const { smash, isCoolingDown } = useSmash(eventId);
 
   const [bakState, setBakState] = useState<BakState>("idle");
@@ -80,6 +84,7 @@ export default function PlayPage({ params }: PlayPageProps) {
     message: string;
     large?: boolean;
   }>({ visible: false, message: "" });
+  const [loadError, setLoadError] = useState<"NOT_FOUND" | "NETWORK" | null>(null);
 
   // 발사 포물선 애니메이션용 projectile 목록
   const [projectiles, setProjectiles] = useState<
@@ -101,6 +106,7 @@ export default function PlayPage({ params }: PlayPageProps) {
       try {
         const ev = await fetchEventFull(eventId);
         if (cancelled) return;
+        setHttpServerTime(ev.serverTime);
         SessionEngine.initFromServerEvent(eventId, ev.openAt, ev.closeAt);
         if (ev.terminalState) {
           SessionEngine.setTerminal(ev.terminalState);
@@ -116,9 +122,10 @@ export default function PlayPage({ params }: PlayPageProps) {
         }
         refresh();
       } catch (e) {
-        console.warn("[play] fetchEvent failed, fallback to mock session", e);
-        SessionEngine.ensure(eventId);
-        refresh();
+        if (cancelled) return;
+        console.error("[play] fetchEvent failed", e);
+        const status = (e as { status?: number })?.status;
+        setLoadError(status === 404 ? "NOT_FOUND" : "NETWORK");
       }
     })();
     return () => {
@@ -259,6 +266,8 @@ export default function PlayPage({ params }: PlayPageProps) {
     if (!response) return;
 
     if (response.status === "HIT" || response.status === "LAST_HIT") {
+      // 본인 클릭 카운트 누적 (서버는 hitSeq 를 전역 순번으로 내려줌)
+      SessionEngine.recordHit({ markWinner: response.status === "LAST_HIT" });
       if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
       setBakState((prev) => (prev === "bursted" ? "bursted" : "shaking"));
       bakTimerRef.current = setTimeout(() => {
@@ -267,9 +276,9 @@ export default function PlayPage({ params }: PlayPageProps) {
     }
 
     if (response.status === "LAST_HIT") {
-      refresh();
-      // ENDED 전환은 session refresh 후 다음 useEffect에서 감지됨 (이미 setTerminal 호출됨)
-      // 여기서 안전하게 즉시 ENDED 플래그도 설정
+      // 마지막 한 방 = 당첨자. terminalState 도 SOLD_OUT 으로 즉시 확정.
+      // (서버 WS terminal push 가 곧 도착하지만 본인 UX 는 즉각 반영 필요)
+      SessionEngine.setTerminal("SOLD_OUT");
       SessionEngine.transition("ENDED");
       refresh();
     }
@@ -286,6 +295,9 @@ export default function PlayPage({ params }: PlayPageProps) {
   }, [practiceToast]);
 
   // ─── 렌더 ────────────────────────────────────────────────────────
+  if (loadError) {
+    return <PlayLoadError reason={loadError} eventId={eventId} />;
+  }
   if (!session || !isReady) {
     return <PlaySkeleton />;
   }
@@ -323,7 +335,8 @@ export default function PlayPage({ params }: PlayPageProps) {
               flexDirection: "column",
               alignItems: "center",
               gap: 2,
-              zIndex: 5,
+              zIndex: 20,
+              pointerEvents: "none",
             }}
           >
             <span style={{ fontSize: 11, color: "#3D9E94", letterSpacing: "0.1em" }}>
@@ -360,7 +373,8 @@ export default function PlayPage({ params }: PlayPageProps) {
               display: "flex",
               flexDirection: "column",
               gap: 2,
-              zIndex: 10,
+              zIndex: 20,
+              pointerEvents: "none",
             }}
           >
             <span style={{ fontSize: 11, color: "#5A5A5A", letterSpacing: "0.05em" }}>
@@ -383,11 +397,12 @@ export default function PlayPage({ params }: PlayPageProps) {
               position: "absolute",
               top: "calc(env(safe-area-inset-top) + 18px)",
               right: 18,
-              zIndex: 10,
+              zIndex: 20,
               display: "flex",
               flexDirection: "column",
               alignItems: "flex-end",
               gap: 4,
+              pointerEvents: "none",
             }}
           >
             <span style={{ fontSize: 11, color: "#5A5A5A", letterSpacing: "0.05em" }}>
@@ -415,6 +430,7 @@ export default function PlayPage({ params }: PlayPageProps) {
           display: "flex",
           justifyContent: "center",
           pointerEvents: "none",
+          zIndex: 1,
         }}
       >
         <div
@@ -656,6 +672,56 @@ function PlaySkeleton() {
       }}
     >
       <Skeleton width="220px" height="220px" />
+    </main>
+  );
+}
+
+function PlayLoadError({
+  reason,
+  eventId,
+}: {
+  reason: "NOT_FOUND" | "NETWORK";
+  eventId: string;
+}) {
+  const title =
+    reason === "NOT_FOUND" ? "이벤트를 찾을 수 없어요" : "네트워크 오류";
+  const description =
+    reason === "NOT_FOUND"
+      ? `'${eventId}' 이벤트가 존재하지 않거나 종료되었습니다.`
+      : "서버와 연결할 수 없어요. 잠시 후 다시 시도해주세요.";
+  return (
+    <main
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#FFFFFF",
+        color: "#1C1917",
+        padding: 24,
+        textAlign: "center",
+      }}
+    >
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>{title}</h1>
+      <p style={{ fontSize: 14, color: "#5A5A5A", marginBottom: 24 }}>
+        {description}
+      </p>
+      <a
+        href="/"
+        style={{
+          padding: "10px 20px",
+          borderRadius: 8,
+          background: "#3D9E94",
+          color: "#FFFFFF",
+          fontSize: 14,
+          fontWeight: 700,
+          textDecoration: "none",
+        }}
+      >
+        홈으로
+      </a>
     </main>
   );
 }

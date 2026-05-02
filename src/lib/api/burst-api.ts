@@ -74,6 +74,8 @@ export interface FullEventResponse {
   prizeAmountKrw: number;
   state: "READY" | "LIVE" | "SOLD_OUT" | "BURST" | "TIME_UP" | "CLOSED";
   terminalState: "SOLD_OUT" | "BURST" | "TIME_UP" | null;
+  /** 서버가 응답을 만든 시각 (epoch ms) — 클라이언트 시계 동기화 anchor */
+  serverTime: number;
 }
 
 export async function fetchEventFull(eventId: string): Promise<FullEventResponse> {
@@ -90,6 +92,7 @@ export async function fetchEventFull(eventId: string): Promise<FullEventResponse
     prizeAmountKrw: d.prizeAmountKrw,
     state: d.state,
     terminalState: d.terminalState,
+    serverTime: d.serverTime ? Date.parse(d.serverTime) : Date.now(),
   };
 }
 
@@ -190,8 +193,30 @@ export async function fetchMe(): Promise<AuthUser | null> {
 /**
  * 카카오 OAuth 로그인 진입 — 전체 창 리다이렉트.
  * 성공 시 burst.auth.login-success-url (기본 http://localhost:3000/) 로 돌아옴.
+ *
+ * @param returnTo  로그인 후 돌아갈 경로(예: "/admin/events"). 미지정 시 현재 경로 자동 사용.
+ *                  sessionStorage 에 저장 → AuthProvider.refresh 가 로그인 성공 감지 후 navigate.
  */
-export function loginWithKakao(): void {
+/** /로 시작하는 same-origin path만 허용. open-redirect 방지 + onClick={login} 같은 사고 방지. */
+function isSafeReturnTo(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith("/") &&
+    !value.startsWith("//")
+  );
+}
+
+export function loginWithKakao(returnTo?: string): void {
+  if (typeof window !== "undefined") {
+    const candidate = isSafeReturnTo(returnTo)
+      ? returnTo
+      : window.location.pathname + window.location.search;
+    if (isSafeReturnTo(candidate) && candidate !== "/") {
+      sessionStorage.setItem("burst.auth.returnTo", candidate);
+    } else {
+      sessionStorage.removeItem("burst.auth.returnTo");
+    }
+  }
   window.location.href = `${BASE}/oauth2/authorization/kakao`;
 }
 

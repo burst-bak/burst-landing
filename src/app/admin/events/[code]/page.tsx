@@ -114,71 +114,69 @@ export default function AdminEventDetailPage({
   if (isLoading)
     return (
       <Frame>
-        <p>loading...</p>
+        <p className="text-[#5A5A5A]">loading…</p>
       </Frame>
     );
   if (!isAuthenticated)
     return (
       <Frame>
-        <p className="mb-3">어드민 로그인이 필요합니다.</p>
+        <p className="mb-4 text-[#5A5A5A]">어드민 로그인이 필요합니다.</p>
         <button
-          onClick={login}
-          className="px-4 py-2 bg-yellow-400 text-black rounded"
+          onClick={() => login()}
+          className="px-4 py-2 bg-[#FEE500] text-black rounded-full font-bold shadow-sm hover:brightness-95 transition"
         >
-          카카오 로그인
+          🔔 카카오 로그인
         </button>
       </Frame>
     );
   if (error)
     return (
       <Frame>
-        <p className="text-rose-400">{error}</p>
+        <p className="text-[#A8332A]">{error}</p>
       </Frame>
     );
 
   const soldOut =
-    live &&
-    ["SOLD_OUT", "BURST", "TIME_UP"].includes(live.redisState);
+    live && ["SOLD_OUT", "BURST", "TIME_UP"].includes(live.redisState);
   const timeLeftMs = live ? Math.max(0, live.closeAtMs - live.nowServerMs) : 0;
   const consumed =
     meta && live ? Math.max(0, meta.initialStock - live.remaining) : 0;
   const pct =
-    meta && meta.initialStock > 0
-      ? (consumed / meta.initialStock) * 100
-      : 0;
+    meta && meta.initialStock > 0 ? (consumed / meta.initialStock) * 100 : 0;
 
-  // 최근 HIT / LAST_HIT 필터
   const hits = audit.filter((r) => r.status === "HIT" || r.status === "LAST_HIT");
   const lastHit = audit.find((r) => r.status === "LAST_HIT");
 
   return (
     <Frame>
       {/* 헤더 */}
-      <header className="mb-4 flex items-baseline">
+      <header className="mb-6 flex items-baseline gap-3">
         <a
           href="/admin/events"
-          className="text-sm text-zinc-500 hover:underline mr-3"
+          className="text-sm text-[#5A5A5A] hover:text-[#3D9E94] hover:underline"
         >
-          ← list
+          ← 목록
         </a>
-        <h1 className="text-xl font-bold">{meta?.title ?? code}</h1>
-        <span className="ml-2 text-xs text-zinc-500">{code}</span>
-        <span className="ml-auto text-xs text-zinc-500">
-          admin: {user?.nickname}
+        <h1 className="text-2xl font-extrabold tracking-tight">
+          {meta?.title ?? code}
+        </h1>
+        <code className="text-xs text-[#9A8E72] font-mono">{code}</code>
+        <span className="ml-auto text-xs text-[#5A5A5A]">
+          admin: <strong>{user?.nickname}</strong>
         </span>
       </header>
 
       {/* 상태 박스 */}
-      <section className="grid grid-cols-4 gap-3 mb-4">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <StatBox
           label="DB state"
           value={meta?.state ?? "-"}
           tone={
             meta?.state === "LIVE"
-              ? "emerald"
+              ? "mint"
               : meta?.state === "READY"
-                ? "sky"
-                : "zinc"
+                ? "yellow"
+                : "muted"
           }
         />
         <StatBox
@@ -186,10 +184,12 @@ export default function AdminEventDetailPage({
           value={live?.redisState ?? "-"}
           tone={
             live?.redisState === "LIVE"
-              ? "emerald"
-              : live?.redisState === "SOLD_OUT"
-                ? "rose"
-                : "zinc"
+              ? "mint"
+              : live?.redisState === "SOLD_OUT" ||
+                  live?.redisState === "BURST" ||
+                  live?.redisState === "TIME_UP"
+                ? "red"
+                : "muted"
           }
         />
         <StatBox
@@ -199,33 +199,37 @@ export default function AdminEventDetailPage({
               ? `${live.remaining.toLocaleString()} / ${meta.initialStock.toLocaleString()}`
               : "-"
           }
+          tone={live && live.remaining === 0 ? "red" : "default"}
         />
         <StatBox
           label={soldOut ? "이벤트 종료" : "남은 시간"}
           value={
             soldOut
-              ? live?.redisState ?? "-"
+              ? (live?.redisState ?? "-")
               : timeLeftMs > 0
                 ? formatTime(timeLeftMs)
                 : "-"
           }
-          tone={soldOut ? "rose" : "amber"}
+          tone={soldOut ? "red" : "amber"}
         />
       </section>
 
       {/* 진행률 바 */}
       {meta && live && (
-        <section className="mb-4 p-3 bg-zinc-900 rounded">
-          <div className="flex justify-between text-xs text-zinc-400 mb-2">
-            <span>소모율</span>
+        <section className="mb-5 p-4 bg-white border border-[#E8E2D4] rounded-2xl shadow-sm">
+          <div className="flex justify-between text-xs text-[#9A8E72] mb-2">
+            <span className="uppercase tracking-wider font-bold">📊 소모율</span>
             <span>
-              성공 순번 <b className="text-zinc-200">{live.successSeq}</b> · 소모{" "}
-              <b className="text-zinc-200">{consumed}</b>
+              성공 순번{" "}
+              <strong className="text-[#1C1917]">{live.successSeq}</strong>{" "}
+              · 소모{" "}
+              <strong className="text-[#1C1917]">{consumed}</strong> /{" "}
+              {meta.initialStock}
             </span>
           </div>
-          <div className="relative h-4 bg-zinc-800 rounded overflow-hidden">
+          <div className="relative h-4 bg-[#F4EFE2] rounded-full overflow-hidden">
             <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-rose-500 transition-[width] duration-500"
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#F4B860] to-[#D4443A] transition-[width] duration-500"
               style={{ width: `${pct.toFixed(1)}%` }}
             />
           </div>
@@ -234,89 +238,104 @@ export default function AdminEventDetailPage({
 
       {/* 시각 정보 */}
       {meta && (
-        <section className="mb-4 p-3 bg-zinc-900 rounded text-xs text-zinc-400 grid grid-cols-3 gap-3">
+        <section className="mb-5 p-4 bg-white border border-[#E8E2D4] rounded-2xl shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
           <TimeCell label="openAt" iso={meta.openAt} />
           <TimeCell label="closeAt" iso={meta.closeAt} />
           <TimeCell label="announceAt" iso={meta.announceAt} />
         </section>
       )}
 
-      {/* 마지막 성공자 + 승자 */}
+      {/* 마지막 성공자 (당첨자) */}
       {lastHit && (
-        <section className="mb-4 p-3 bg-emerald-900/20 border border-emerald-500/40 rounded">
-          <div className="text-xs text-emerald-300 mb-1">
-            🏆 마지막 성공자 (LAST_HIT)
+        <section className="mb-5 p-4 bg-[#EAF7F4] border border-[#3D9E94] rounded-2xl shadow-sm">
+          <div className="text-xs text-[#3D9E94] mb-1 font-bold uppercase tracking-wider">
+            🏆 마지막 성공자 (당첨자)
           </div>
-          <div>
-            <b>{lastHit.nickname}</b>{" "}
-            <span className="text-zinc-500 text-xs">
+          <div className="text-base">
+            <strong>{lastHit.nickname}</strong>{" "}
+            <code className="text-[#5A5A5A] text-xs font-mono">
               (userId={lastHit.userId})
-            </span>{" "}
-            — {new Date(lastHit.serverTs).toLocaleTimeString()}
+            </code>
+            <span className="text-[#5A5A5A] mx-2">·</span>
+            <span className="text-[#5A5A5A] font-mono text-sm">
+              {new Date(lastHit.serverTs).toLocaleTimeString("ko-KR")}
+            </span>
           </div>
-          <div className="text-xs text-zinc-500 mt-1">
+          <div className="text-xs text-[#9A8E72] mt-1 font-mono">
             requestId: {lastHit.requestId}
           </div>
         </section>
       )}
 
       {/* 최근 히트 로그 */}
-      <section className="mb-4 p-3 bg-zinc-900 rounded">
-        <div className="flex items-center mb-2">
-          <h2 className="text-zinc-400">최근 smash 로그 (50건)</h2>
-          <span className="ml-auto text-xs text-zinc-500">
-            총 HIT: {hits.length} · REJECT:{" "}
-            {audit.length - hits.length}
+      <section className="mb-5 p-4 bg-white border border-[#E8E2D4] rounded-2xl shadow-sm">
+        <div className="flex items-center mb-3">
+          <h2 className="text-xs font-bold text-[#9A8E72] uppercase tracking-wider">
+            📜 최근 smash 로그 (50건)
+          </h2>
+          <span className="ml-auto text-xs text-[#5A5A5A]">
+            HIT <strong className="text-[#3D9E94]">{hits.length}</strong> ·
+            REJECT{" "}
+            <strong className="text-[#D4443A]">
+              {audit.length - hits.length}
+            </strong>
           </span>
         </div>
-        <div className="max-h-96 overflow-auto">
+        <div className="max-h-[420px] overflow-auto rounded-lg border border-[#F0EBDF]">
           <table className="w-full text-xs">
-            <thead className="text-zinc-500 sticky top-0 bg-zinc-900">
+            <thead className="text-[#9A8E72] sticky top-0 bg-[#FAF7EE] uppercase tracking-wider">
               <tr>
-                <th className="text-left py-1">time</th>
-                <th className="text-left py-1">user</th>
-                <th className="text-left py-1">status</th>
-                <th className="text-left py-1">reject</th>
+                <th className="text-left py-2 px-2">time</th>
+                <th className="text-left py-2 px-2">user</th>
+                <th className="text-left py-2 px-2">status</th>
+                <th className="text-left py-2 px-2">reject</th>
               </tr>
             </thead>
             <tbody>
               {audit.map((r) => (
                 <tr
                   key={r.id}
-                  className={`border-t border-zinc-800 ${
+                  className={`border-t border-[#F0EBDF] ${
                     r.status === "LAST_HIT"
-                      ? "bg-emerald-900/20"
+                      ? "bg-[#EAF7F4]"
                       : r.status === "HIT"
-                        ? ""
-                        : "text-zinc-500"
+                        ? "bg-white"
+                        : "bg-[#FAF7EE] text-[#9A8E72]"
                   }`}
                 >
-                  <td className="py-1 font-mono">
+                  <td className="py-1.5 px-2 font-mono">
                     {new Date(r.serverTs).toISOString().slice(11, 23)}
                   </td>
-                  <td className="py-1">
-                    {r.nickname}{" "}
-                    <span className="text-zinc-600">#{r.userId}</span>
+                  <td className="py-1.5 px-2">
+                    <strong>{r.nickname}</strong>{" "}
+                    <code className="text-[#9A8E72] font-mono">
+                      #{r.userId}
+                    </code>
                   </td>
-                  <td
-                    className={`py-1 ${
-                      r.status === "LAST_HIT"
-                        ? "text-emerald-300"
-                        : r.status === "HIT"
-                          ? "text-sky-400"
-                          : ""
-                    }`}
-                  >
-                    {r.status}
+                  <td className="py-1.5 px-2">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full font-bold ${
+                        r.status === "LAST_HIT"
+                          ? "bg-[#3D9E94] text-white"
+                          : r.status === "HIT"
+                            ? "bg-[#FEE500] text-black"
+                            : "bg-[#E8E2D4] text-[#5A5A5A]"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
                   </td>
-                  <td className="py-1 text-zinc-500">
+                  <td className="py-1.5 px-2 text-[#A8332A] font-mono">
                     {r.rejectReason ?? ""}
                   </td>
                 </tr>
               ))}
               {audit.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-center py-4 text-zinc-600">
+                  <td
+                    colSpan={4}
+                    className="text-center py-6 text-[#9A8E72]"
+                  >
                     (아직 요청 없음 — LIVE 시작 후 표시)
                   </td>
                 </tr>
@@ -326,18 +345,18 @@ export default function AdminEventDetailPage({
         </div>
       </section>
 
-      <div className="flex gap-2 text-xs">
+      <div className="flex flex-wrap gap-2 text-xs">
         <a
           href={`/play/${code}`}
-          className="px-3 py-1 bg-emerald-600 rounded"
+          className="px-4 py-2 bg-[#3D9E94] text-white rounded-full font-bold shadow-sm hover:brightness-95 transition"
         >
-          플레이로 이동
+          🎮 플레이로 이동
         </a>
         <a
           href={`/live-demo?code=${code}`}
-          className="px-3 py-1 bg-sky-600 rounded"
+          className="px-4 py-2 bg-[#1C1917] text-white rounded-full font-bold hover:bg-[#3F3A33] transition"
         >
-          디버그 페이지
+          🛠 디버그 페이지
         </a>
       </div>
     </Frame>
@@ -346,7 +365,7 @@ export default function AdminEventDetailPage({
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 p-6 font-mono text-sm">
+    <main className="min-h-screen bg-[#FFFDF7] text-[#1C1917] p-6">
       <div className="max-w-5xl mx-auto">{children}</div>
     </main>
   );
@@ -355,23 +374,28 @@ function Frame({ children }: { children: React.ReactNode }) {
 function StatBox({
   label,
   value,
-  tone = "zinc",
+  tone = "default",
 }: {
   label: string;
   value: string | number;
-  tone?: "zinc" | "emerald" | "sky" | "rose" | "amber";
+  tone?: "default" | "muted" | "mint" | "yellow" | "red" | "amber";
 }) {
   const toneMap = {
-    zinc: "text-zinc-200",
-    emerald: "text-emerald-400",
-    sky: "text-sky-400",
-    rose: "text-rose-400",
-    amber: "text-amber-400",
+    default: "text-[#1C1917]",
+    muted: "text-[#9A8E72]",
+    mint: "text-[#3D9E94]",
+    yellow: "text-[#B58B00]",
+    red: "text-[#D4443A]",
+    amber: "text-[#D17B00]",
   };
   return (
-    <div className="p-3 bg-zinc-900 rounded">
-      <div className="text-xs text-zinc-500 mb-1">{label}</div>
-      <div className={`text-lg font-bold ${toneMap[tone]}`}>{value}</div>
+    <div className="p-3 bg-white border border-[#E8E2D4] rounded-2xl shadow-sm">
+      <div className="text-xs text-[#9A8E72] mb-1 uppercase tracking-wider font-medium">
+        {label}
+      </div>
+      <div className={`text-lg font-bold ${toneMap[tone]} font-mono`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -379,9 +403,19 @@ function StatBox({
 function TimeCell({ label, iso }: { label: string; iso: string }) {
   return (
     <div>
-      <div className="text-zinc-500">{label}</div>
-      <div className="text-zinc-200">
-        {new Date(iso).toLocaleString()}
+      <div className="text-xs text-[#9A8E72] uppercase tracking-wider font-medium mb-1">
+        {label}
+      </div>
+      <div className="text-[#1C1917] font-mono text-sm">
+        {new Date(iso).toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        })}
       </div>
     </div>
   );

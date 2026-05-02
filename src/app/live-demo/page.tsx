@@ -172,7 +172,7 @@ export default function LiveDemoPage() {
         <div className="ml-auto flex gap-2">
           <button
             className="px-3 py-1 bg-yellow-400 text-black rounded"
-            onClick={login}
+            onClick={() => login()}
           >
             카카오 로그인
           </button>

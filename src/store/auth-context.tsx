@@ -34,7 +34,8 @@ export interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: () => Promise<void>;
+  /** OAuth 시작 — returnTo 미지정 시 현재 경로로 자동 복귀 */
+  login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -49,6 +50,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await fetchMe();
       setUser(me);
+      // 로그인 성공 + sessionStorage에 returnTo 있으면 그 경로로 복귀.
+      // 카카오 OAuth 가 항상 / 로 돌려보내기 때문에 클라이언트에서 보정.
+      if (me && typeof window !== "undefined") {
+        const returnTo = sessionStorage.getItem("burst.auth.returnTo");
+        sessionStorage.removeItem("burst.auth.returnTo");
+        // /로 시작하는 same-origin path만 허용 (open-redirect 방지)
+        const safe =
+          typeof returnTo === "string" &&
+          returnTo.startsWith("/") &&
+          !returnTo.startsWith("//");
+        if (safe && window.location.pathname === "/" && returnTo !== "/") {
+          window.location.replace(returnTo);
+        }
+      }
     } catch (e) {
       console.error("[auth] fetchMe failed", e);
       setUser(null);
@@ -61,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(async () => {
-    loginWithKakao();
+  const login = useCallback(async (returnTo?: string) => {
+    loginWithKakao(returnTo);
   }, []);
 
   const logout = useCallback(async () => {
