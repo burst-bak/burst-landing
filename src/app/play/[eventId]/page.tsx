@@ -267,18 +267,21 @@ export default function PlayPage({ params }: PlayPageProps) {
       return;
     }
 
-    // LIVE — 실제 발사
+    // LIVE — 클릭 즉시 흔들림 (시각 피드백은 서버 응답 기다리지 않음).
+    // bursted 면 유지, 아니면 shaking 으로 갱신.
+    if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
+    setBakState((prev) => (prev === "bursted" ? "bursted" : "shaking"));
+    bakTimerRef.current = setTimeout(() => {
+      setBakState((prev) => (prev === "bursted" ? "bursted" : "idle"));
+    }, 350);
+
+    // 실제 발사
     const response = await smash();
     if (!response) return;
 
     if (response.status === "HIT" || response.status === "LAST_HIT") {
       // 본인 클릭 카운트 누적 (서버는 hitSeq 를 전역 순번으로 내려줌)
       SessionEngine.recordHit({ markWinner: response.status === "LAST_HIT" });
-      if (bakTimerRef.current) clearTimeout(bakTimerRef.current);
-      setBakState((prev) => (prev === "bursted" ? "bursted" : "shaking"));
-      bakTimerRef.current = setTimeout(() => {
-        setBakState((prev) => (prev === "bursted" ? "bursted" : "idle"));
-      }, 350);
     }
 
     if (response.status === "LAST_HIT") {
