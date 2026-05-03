@@ -3,7 +3,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks";
 
 /* ── GA4 event helper ── */
 function gtag(...args: unknown[]) {
@@ -275,6 +276,8 @@ interface FlyingCookie {
 
 export default function LandingPage() {
   const kakaoChannelUrl = "https://pf.kakao.com/_sTjCX";
+  const router = useRouter();
+  const { isAuthenticated, login } = useAuth();
   const [lang, setLang] = useState<Lang>("ko");
   const [cookies, setCookies] = useState<FlyingCookie[]>([]);
   const [isShaking, setIsShaking] = useState(false);
@@ -331,9 +334,19 @@ export default function LandingPage() {
     >
       {/* ── 운동장 가기 버튼 (우측 상단 고정 — v2.1 확정) ── */}
       {/* 운영: NEXT_PUBLIC_DEFAULT_EVENT_CODE 로 현재 진행 이벤트 코드 주입. 미설정 시 test-event(로컬 시드) 폴백. */}
-      <Link
-        href={`/play/${process.env.NEXT_PUBLIC_DEFAULT_EVENT_CODE ?? "test-event"}`}
-        onClick={() => trackEvent("cta_playground_enter")}
+      {/* 비로그인 상태에선 카카오 OAuth 후 /play/{code} 로 자동 복귀 (returnTo) */}
+      <button
+        type="button"
+        onClick={() => {
+          const code = process.env.NEXT_PUBLIC_DEFAULT_EVENT_CODE ?? "test-event";
+          const target = `/play/${code}`;
+          trackEvent("cta_playground_enter");
+          if (isAuthenticated) {
+            router.push(target);
+          } else {
+            login(target);
+          }
+        }}
         className="fixed z-50 rounded-full px-4 py-2 text-sm font-bold text-white
                    bg-gradient-to-b from-[#6DD4C8] via-[#5BBFB5] to-[#3D9E94]
                    border border-[#3D9E94]/40
@@ -347,7 +360,7 @@ export default function LandingPage() {
       >
         <span>운동장 가기</span>
         <span aria-hidden>→</span>
-      </Link>
+      </button>
 
       {/* ── flying sand bags (absolute, 화면 중앙 기준) ── */}
       <AnimatePresence>
