@@ -66,8 +66,14 @@ const MODAL_DELAY_MS = 700;
 
 export default function PlayPage({ params }: PlayPageProps) {
   const { eventId } = use(params);
-  const { user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
   const { session, refresh } = useGame();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      login(`/play/${eventId}`);
+    }
+  }, [authLoading, isAuthenticated, eventId, login]);
   const { gauge, terminal: wsTerminal } = useBurstGaugeReal(eventId);
   // 서버 시각 anchor: HTTP fetch 의 serverTime 으로 첫 anchor → STOMP gauge.serverNow 로 갱신.
   // (gauge 가 안 들어오면 fetchEventFull 직후 setHttpServerTime 으로 anchor 만 잡음)
@@ -298,6 +304,9 @@ export default function PlayPage({ params }: PlayPageProps) {
   if (loadError) {
     return <PlayLoadError reason={loadError} eventId={eventId} />;
   }
+  if (authLoading || !isAuthenticated) {
+    return <PlaySkeleton />;
+  }
   if (!session || !isReady) {
     return <PlaySkeleton />;
   }
@@ -353,9 +362,6 @@ export default function PlayPage({ params }: PlayPageProps) {
               }}
             >
               {formatCountdown(remainingToOpen)}
-            </span>
-            <span style={{ fontSize: 10, color: "#999", marginTop: 2 }}>
-              {user?.nickname ?? "게스트"}
             </span>
           </motion.div>
         )}
