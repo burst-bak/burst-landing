@@ -198,8 +198,13 @@ export default function PlayPage({ params }: PlayPageProps) {
     if (phase !== "ENDED") return;
     if (showResultModal) return;
     if (modalTimerRef.current) return;
-    // 박 터지는 연출 시간 후 Modal
-    setBakState("bursted");
+    // SOLD_OUT / BURST 만 박이 터진 비주얼. TIME_UP 은 재고 남았으므로 idle 유지.
+    const t = SessionEngine.getState()?.terminalState;
+    if (t === "SOLD_OUT" || t === "BURST") {
+      setBakState("bursted");
+    } else {
+      setBakState("idle");
+    }
     modalTimerRef.current = setTimeout(() => {
       setShowResultModal(true);
     }, MODAL_DELAY_MS);
@@ -481,7 +486,9 @@ export default function PlayPage({ params }: PlayPageProps) {
             ? "연습 투척"
             : phase === "LIVE"
               ? "당겨서 발사"
-              : "박은 이미 터졌어요"}
+              : terminalState === "TIME_UP"
+                ? "이벤트 종료"
+                : "박이 터졌어요!"}
         </span>
 
         {/* 모래주머니 + 우측 후방 드래그 방향 인디케이터 */}
